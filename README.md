@@ -7,4 +7,4 @@ Simply change the parameters for your needs. You can verify it works by visiting
 
 `WriteToIRC -server "open.ircnet.net" -port "6667" -channel "#testchannel567" -nick "testnick123" -msg "testing 1 2 3"`
 
-This was tested on open.ircnet.net, but if you use another server, you may need to customize the "wait" section based on how that server responds. 
+This was tested on open.ircnet.net. If you use another server and the message does not arrive, you may need to customize the "wait" section based on how that server responds. 
