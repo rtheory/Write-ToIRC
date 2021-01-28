@@ -1,29 +1,50 @@
-﻿# Sends a message to an IRC channel on a given server
-Function WriteToIRC ($server, $port, $channel, $nick, $msg){
-    # Connect
-    $connection = New-Object Net.Sockets.TcpClient($server, $port)
-    $stream = $connection.GetStream()
-    $reader = New-Object IO.StreamReader($stream, [Text.Encoding]::ASCII)
-    $writer = New-Object IO.StreamWriter($stream, [Text.Encoding]::ASCII)
-
-    # Login
-    $writer.WriteLine("NICK $nick"); $writer.Flush()
-    $writer.WriteLine("USER $nick 0 * :..."); $writer.Flush()
-
-    # Wait (may need adjustment if using a server other than open.ircnet.net)
-    $reader.ReadLine() # Get the "please wait while we process your connection..."
-    $reader.ReadLine() # Once the server responds a second time, it's ready for us to send commands
-
-    # Write the message
-    $writer.WriteLine("PRIVMSG $channel :$msg"); $writer.Flush()
-    $reader.ReadLine() 
-
-    # Logout
-    $writer.WriteLine("QUIT"); $writer.Flush()
-    $reader.ReadLine() 
-    $connection.Close()
-    $connection.Dispose()
+﻿# Write a raw message to the socket
+Function WriteToSocket ($msg) {
+    $writer = New-Object IO.StreamWriter($conn.GetStream(), [Text.Encoding]::ASCII)
+    $writer.WriteLine($msg)
+    $writer.Flush()
+    Sleep 2
 }
 
-# Test it out 
-WriteToIRC -server "open.ircnet.net" -port "6667" -channel "#testchannel567" -nick "testnick123" -msg "testing 1 2 3"
+# Handles cases where a server sends a PING challenge before allowing login
+Function HandlePING {
+    $reader = New-Object IO.StreamReader($conn.GetStream(), [Text.Encoding]::ASCII)
+    do {
+        $data = $reader.ReadLine()
+        Sleep 1
+    } while ($data -notlike 'PING *' -and $data -notlike '*MOTD*')
+    
+    if ($data -like 'PING *'){
+        $pingChallenge = ($data -split ':')[1]
+        WriteToSocket "PONG :$pingChallenge"
+    }
+}
+
+# Gracefully log out of the IRC server
+Function LogOutIRC {
+    WriteToSocket "QUIT"
+    $conn.Close()
+    $conn.Dispose()
+}
+
+# Main function for the user that wraps everything above
+Function WriteToIRC ($server, $port, $nick, $chan, $msg) {
+    Sleep 1
+    WriteToSocket "NICK $nick"
+    WriteToSocket "USER $nick 0 * :..."
+    HandlePING
+    WriteToSocket "JOIN $chan"
+    WriteToSocket "PRIVMSG $chan :$msg"
+    LogOutIRC
+}
+
+# User-changeable values
+$serv = "irc.irc4fun.net"
+$port = "6667"
+$nick = "testnick123"
+$chan = "#testchannel567"
+$msg  = "testing 1 2 3"
+
+# Send the message
+$conn = New-Object Net.Sockets.TcpClient($serv, $port)
+WriteToIRC -nick $nick -chan $chan -msg $msg
